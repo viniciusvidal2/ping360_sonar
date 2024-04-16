@@ -53,9 +53,9 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_executable(my_node src/ping360_sonar/listener.cpp)
-add_dependencies(my_node ${catkin_EXPORTED_TARGETS})
-TARGET_LINK_LIBRARIES(my_node ${catkin_LIBRARIES})
+# add_executable(my_node src/ping360_sonar/listener.cpp)
+# add_dependencies(my_node ${catkin_EXPORTED_TARGETS})
+# TARGET_LINK_LIBRARIES(my_node ${catkin_LIBRARIES})
 
 install(PROGRAMS
      nodes/ping360_node
