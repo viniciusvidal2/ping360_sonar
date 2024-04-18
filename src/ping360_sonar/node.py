@@ -51,10 +51,10 @@ def callback(config, level):
         transmitFrequency = config['transmitFrequency']
         sonarRange = config['range']
         speedOfSound = config['speedOfSound']
-        samplePeriod = calculateSamplePeriod(
-            sonarRange, numberOfSamples, speedOfSound)
-        transmitDuration = adjustTransmitDuration(
-            sonarRange, samplePeriod, speedOfSound)
+        samplePeriod = int(calculateSamplePeriod(
+            sonarRange, numberOfSamples, speedOfSound))
+        transmitDuration = int(adjustTransmitDuration(
+            sonarRange, samplePeriod, speedOfSound))
         debug = config['debug']
         step = config['step']
         queue_size = config['queueSize']
@@ -81,9 +81,9 @@ def main():
         '~transmitFrequency', 740)  # Default frequency
     sonarRange = rospy.get_param('~sonarRange', 1)  # in m
     speedOfSound = rospy.get_param('~speedOfSound', 1500)  # in m/s
-    samplePeriod = calculateSamplePeriod(sonarRange, numberOfSamples, speedOfSound)
-    transmitDuration = adjustTransmitDuration(
-        sonarRange, samplePeriod, speedOfSound)
+    samplePeriod = int(calculateSamplePeriod(sonarRange, numberOfSamples, speedOfSound))
+    transmitDuration = int(adjustTransmitDuration(
+        sonarRange, samplePeriod, speedOfSound))
     debug = rospy.get_param('~debug', True)
     threshold = int(rospy.get_param('~threshold', 200))  # 0-255
 
