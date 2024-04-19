@@ -10,11 +10,12 @@
         <param name="step" value="1"/>
         <param name="numberOfSamples" value="200"/>
         <param name="transmitFrequency" value="740"/>
-        <param name="sonarRange" value="10"/>
+        <param name="sonarRange" value="15"/>
+        <param name="range" value="15"/>
         <param name="speedOfSound" value="1500"/>
         <param name="queueSize" value="1"/>
         <param name="threshold" value="100"/>
-        <param name="enableImageTopic" value="True"/> 
+        <param name="enableImageTopic" value="False"/> 
         <param name="enableScanTopic" value="True"/> 
         <param name="enableDataTopic" value="True"/> 
         <param name="maxAngle" value="400"/> 
