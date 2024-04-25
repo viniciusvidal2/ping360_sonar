@@ -91,38 +91,15 @@ def main():
     enableScanTopic = rospy.get_param('~enableScanTopic', True)
     enableDataTopic = rospy.get_param('~enableDataTopic', True)
 
-    maxAngle = int(rospy.get_param('~maxAngle', 400))  # 0-400
-    minAngle = int(rospy.get_param('~minAngle', 0))  # 0-400
-    FOV = maxAngle - minAngle  # The sonars field of view
+    maxAngle = int(rospy.get_param('~maxAngle', 360)) # [degrees]
+    minAngle = int(rospy.get_param('~minAngle', 0)) # [degrees]
     oscillate = int(rospy.get_param('~oscillate', True))
-    sign = 1
+    angleResolutionLaseScanMsg = float(rospy.get_param('~laserMsgAngleResolution', 1.0)) # [degrees]
 
     # Output and ROS parameters
     step = int(rospy.get_param('~step', 1))
     imgSize = int(rospy.get_param('~imgSize', 500))
     queue_size = int(rospy.get_param('~queueSize', 1))
-
-    # TODO: improve configuration validation
-    if FOV <= 0:
-        rospy.logerr(
-            """
-            minAngle should be inferior to the maxAngle!
-            Current settings:
-                minAngle: {} - maxAngle: {}""".format(maxAngle, minAngle))
-        rospy.signal_shutdown("Bad minAngle & maxAngle values")
-        return
-
-    if step >= FOV:
-        rospy.logerr(
-            """
-            The configured step is bigger then the set FOV (maxAngle - minAngle)
-            Current settings:
-                step: {} - minAngle: {} - maxAngle: {} - FOV: {}""".format(step,
-                                                                           maxAngle,
-                                                                           minAngle,
-                                                                           FOV))
-        rospy.signal_shutdown("Bad minAngle & maxAngle or step values")
-        return
 
     # Initialize sensor
     sensor = Ping360(device, baudrate)
@@ -132,88 +109,92 @@ def main():
     srv = Server(sonarConfig, callback)
 
     # Global Variables
+    sign = 1
     angle = minAngle
-    bridge = CvBridge()
+    # bridge = CvBridge()
 
     # Topic publishers
-    imagePub = rospy.Publisher(
-        "/ping360_node/sonar/images", Image, queue_size=queue_size)
-    rawPub = rospy.Publisher("/ping360_node/sonar/data",
-                             SonarEcho, queue_size=queue_size)
-    laserPub = rospy.Publisher(
-        "/ping360_node/sonar/scan", LaserScan, queue_size=queue_size)
+    # imagePub = rospy.Publisher(
+    #     "/ping360_node/sonar/images", Image, queue_size=queue_size)
+    # rawPub = rospy.Publisher("/ping360_node/sonar/data",
+    #                          SonarEcho, queue_size=queue_size)
+    laserPub = rospy.Publisher("/ping360_node/sonar/scan", LaserScan, queue_size=queue_size)
 
     # Initialize and configure the sonar
-    updateSonarConfig(sensor, gain, transmitFrequency,
-                      transmitDuration, samplePeriod, numberOfSamples)
+    updateSonarConfig(sensor, gain, transmitFrequency, transmitDuration, samplePeriod, numberOfSamples)
 
-    # Create a new mono-channel image
-    image = np.zeros((imgSize, imgSize, 1), np.uint8)
+    # # Create a new mono-channel image
+    # image = np.zeros((imgSize, imgSize, 1), np.uint8)
 
-    # Initial the LaserScan Intensities & Ranges
-    ranges = [0]
-    intensities = [0]
+    # # Initial the LaserScan Intensities & Ranges
+    # ranges = [0]
+    # intensities = [0]
 
-    # Center point coordinates
-    center = (float(imgSize / 2), float(imgSize / 2))
+    # # Center point coordinates
+    # center = (float(imgSize / 2), float(imgSize / 2))
 
     rate = rospy.Rate(100)  # 100hz
 
     while not rospy.is_shutdown():
         # Update to the latest config data
         if updated:
-            updateSonarConfig(sensor, gain, transmitFrequency,
-                              transmitDuration, samplePeriod, numberOfSamples)
+            updateSonarConfig(sensor, gain, transmitFrequency, transmitDuration, samplePeriod, numberOfSamples)
         # Get sonar response
         data = getSonarData(sensor, angle)
 
-        # Contruct and publish Sonar data msg
-        if enableDataTopic:
-            rawDataMsg = generateRawMsg(angle, data, gain, numberOfSamples, transmitFrequency, speedOfSound, sonarRange)
-            rawPub.publish(rawDataMsg)
+        # # Contruct and publish Sonar data msg
+        # if enableDataTopic:
+        #     rawDataMsg = generateRawMsg(angle, data, gain, numberOfSamples, transmitFrequency, speedOfSound, sonarRange)
+        #     rawPub.publish(rawDataMsg)
 
         # Prepare scan msg
         if enableScanTopic:
+            # We need the scan message in a certain pattern in terms of angle resolution
+            ranges = [0 for _ in range(int((maxAngle - minAngle) / angleResolutionLaseScanMsg))]
+            intensities = [0 for _ in range(int((maxAngle - minAngle) / angleResolutionLaseScanMsg))]
             # Get the first high intensity value
             for detectedIntensity in data:
                 if detectedIntensity >= threshold:
                     detectedIndex = data.index(detectedIntensity)
                     # The index+1 represents the number of samples which then can be used to deduce the range
-                    distance = calculateRange(
-                        (1 + detectedIndex), samplePeriod, speedOfSound)
+                    distance = calculateRange((1 + detectedIndex), samplePeriod, speedOfSound)
                     if distance >= 0.75 and distance <= sonarRange:
-                        ranges[0] = distance
-                        intensities[0] = detectedIntensity
-                        if debug:
-                            print("Object at {} grad : {}m - {}%".format(angle,
-                                                                         ranges[0],
-                                                                         float(intensities[0] * 100 / 255)))
-                        break
+                        # Get the list index where the range was measured
+                        currentIndex = int((angle - minAngle) / angleResolutionLaseScanMsg)
+                        if currentIndex >= len(ranges) or currentIndex < 0:
+                            continue
+                        ranges[currentIndex] = distance
+                        intensities[currentIndex] = detectedIntensity
+                        # if debug:
+                        #     print("Object at {} grad : {}m - {}%".format(angle,
+                        #                                                  ranges[0],
+                        #                                                  float(intensities[0] * 100 / 255)))
+                        # break
             # Contruct and publish Sonar scan msg
-            scanDataMsg = generateScanMsg(ranges, intensities, sonarRange, step, maxAngle, minAngle)
+            scanDataMsg = generateScanMsg(ranges, intensities, sonarRange, int(angleResolutionLaseScanMsg), maxAngle, minAngle)
             laserPub.publish(scanDataMsg)
 
-        # Contruct and publish Sonar image msg
-        if enableImageTopic:
-            linear_factor = float(len(data)) / float(center[0])
-            try:
-                for i in range(int(center[0])):
-                    if(i < center[0]):
-                        pointColor = data[int(i * linear_factor - 1)]
-                    else:
-                        pointColor = 0
-                    for k in np.linspace(0, step, 8 * step):
-                        theta = 2 * pi * (angle + k) / 400.0
-                        x = float(i) * cos(theta)
-                        y = float(i) * sin(theta)
-                        image[int(center[0] + x)][int(center[1] + y)
-                                                  ][0] = pointColor
-            except IndexError:
-                rospy.logwarn(
-                    "IndexError: data response was empty, skipping this iteration..")
-                continue
+        # # Contruct and publish Sonar image msg
+        # if enableImageTopic:
+        #     linear_factor = float(len(data)) / float(center[0])
+        #     try:
+        #         for i in range(int(center[0])):
+        #             if(i < center[0]):
+        #                 pointColor = data[int(i * linear_factor - 1)]
+        #             else:
+        #                 pointColor = 0
+        #             for k in np.linspace(0, step, 8 * step):
+        #                 theta = 2 * pi * (angle + k) / 400.0
+        #                 x = float(i) * cos(theta)
+        #                 y = float(i) * sin(theta)
+        #                 image[int(center[0] + x)][int(center[1] + y)
+        #                                           ][0] = pointColor
+        #     except IndexError:
+        #         rospy.logwarn(
+        #             "IndexError: data response was empty, skipping this iteration..")
+        #         continue
 
-            publishImage(image, imagePub, bridge)
+        #     publishImage(image, imagePub, bridge)
 
         angle += sign * step
         if angle >= maxAngle:
@@ -275,11 +256,15 @@ def generateScanMsg(ranges, intensities, sonarRange, step, maxAngle, minAngle):
     """
     Generates the laserScan message for the scan topic
     Args:
-        angle (int): Gradian Angle
-        data (list): List of intensities
+        ranges (list): List of ranges
+        intensities (list): List of intensities
         sonarRange (int)
         step (int)
-     """
+        maxAngle (int)
+        minAngle (int)
+    Returns:
+        LaserScan: message
+    """
     msg = LaserScan()
     msg.header.stamp = rospy.Time.now()
     msg.header.frame_id = 'sonar_frame'
