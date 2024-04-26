@@ -268,9 +268,9 @@ def generateScanMsg(ranges, intensities, sonarRange, step, maxAngle, minAngle):
     msg = LaserScan()
     msg.header.stamp = rospy.Time.now()
     msg.header.frame_id = 'sonar_frame'
-    msg.angle_min = 2 * pi * minAngle / 400
-    msg.angle_max = 2 * pi * maxAngle / 400
-    msg.angle_increment = 2 * pi * step / 400
+    msg.angle_min = np.deg2rad(minAngle)
+    msg.angle_max = np.deg2rad(maxAngle)
+    msg.angle_increment = np.deg2rad(step)
     msg.time_increment = 0
     msg.range_min = .75
     msg.range_max = sonarRange
